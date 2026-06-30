@@ -552,8 +552,8 @@ document.querySelectorAll('#protoChips button').forEach(b=>b.addEventListener('c
    CONFIG  ·  paste your Supabase keys here to go fully online
    (until you do, the app runs locally in this browser)
    ============================================================ */
-const SUPABASE_URL  = "PASTE_YOUR_PROJECT_URL_HERE";
-const SUPABASE_ANON = "PASTE_YOUR_ANON_PUBLIC_KEY_HERE";
+const SUPABASE_URL  = "https://vpgildqoyprhacjqsaub.supabase.co/rest/v1/";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwZ2lsZHFveXByaGFjanFzYXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4NDU1NjYsImV4cCI6MjA5ODQyMTU2Nn0.Vf34Axm41r2hTzlmUheunYjTL4rP80rQw_LPht5q56c";
 const USE_SUPABASE  = /^https:\/\//.test(SUPABASE_URL) && SUPABASE_ANON.length>20 && typeof supabase!=='undefined';
 
 /* ---------- accounts + auth ---------- */
