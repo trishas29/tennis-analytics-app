@@ -256,6 +256,18 @@
   .sheet-opt span{font-size:12.5px; color:var(--muted);}
   .sheet-opt .so-go{margin-left:auto; color:var(--faint); font-size:20px;}
 
+  /* live scoreboard + point entry extras */
+  .board .bhead{display:flex; align-items:center; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; opacity:.7; margin:2px 0 2px;}
+  .board .bhead .bh-sp{flex:1;}
+  .board .bhead span:not(.bh-sp){width:34px; text-align:center; margin-left:16px;}
+  .board .g.dim{opacity:.6;}
+  .opt.sel{border-color:var(--violet); background:var(--violet-t); color:var(--violet-d);}
+  .prow{display:flex; align-items:center; gap:8px; padding:9px 11px; border:1px solid var(--line); border-radius:12px; margin-bottom:8px; background:var(--card); font-size:13px;}
+  .prow .pn2{font-weight:800; color:var(--faint); min-width:30px;}
+  .prow .pw{margin-left:auto; font-weight:700;}
+  .prow .mini{font:inherit; font-size:12px; font-weight:700; padding:6px 9px; border-radius:9px; border:1px solid var(--line2); background:var(--card); color:var(--violet); cursor:pointer;}
+  .prow .mini.warn{color:var(--red); border-color:var(--red-t);}
+
   @media (prefers-reduced-motion: reduce){*{animation:none !important; transition:none !important;}}
 </style>
 
@@ -354,8 +366,23 @@
           <div class="field"><label>Player 1 name (you)</label><input id="p1in" value="Alex Rivera"></div>
           <div class="field"><label>Player 2 name (opponent)</label><input id="p2in" value="Opponent"></div>
 
-          <label style="display:block; font-size:13px; font-weight:600; color:var(--muted); margin:0 0 10px;">Default match format</label>
+          <label style="display:block; font-size:13px; font-weight:600; color:var(--muted); margin:0 0 10px;">Match format</label>
           <div id="fmtList"></div>
+
+          <div class="field" id="adWrap" style="margin-top:14px;">
+            <label>Scoring</label>
+            <div class="seg" id="adSeg">
+              <button class="on" data-ad="ads">Ads</button>
+              <button data-ad="noAds">No-Ads</button>
+            </div>
+          </div>
+          <div class="field" id="mtbWrap" style="margin-top:14px; display:none;">
+            <label>Tiebreak length</label>
+            <div class="seg" id="mtbSeg">
+              <button class="on" data-mtb="normal">Normal (to 7)</button>
+              <button data-mtb="super">Super (to 10)</button>
+            </div>
+          </div>
 
           <div class="field" style="margin-top:6px;">
             <label>Who serves first?</label>
@@ -379,32 +406,31 @@
         </div>
 
         <div class="board">
-          <p class="meta" id="setLabel">Set 1</p>
+          <p class="meta" id="setLabel">Match</p>
+          <div class="bhead"><span class="bh-sp"></span><span>Sets</span><span>Games</span><span>Pts</span></div>
           <div class="srow">
-            <span class="pn"><span class="dot" id="dot1"></span><span id="bn1">Alex Rivera</span></span>
-            <span class="pts"><span class="g" id="g1">0</span><span class="p" id="pt1">0</span></span>
+            <span class="pn"><span class="dot" id="dot1"></span><span id="bn1">Player 1</span></span>
+            <span class="pts"><span class="g dim" id="s1">0</span><span class="g" id="g1">0</span><span class="p" id="pt1">0</span></span>
           </div>
           <div class="srow">
-            <span class="pn"><span class="dot" id="dot2"></span><span id="bn2">Daniel Cho</span></span>
-            <span class="pts"><span class="g" id="g2">0</span><span class="p" id="pt2">0</span></span>
+            <span class="pn"><span class="dot" id="dot2"></span><span id="bn2">Player 2</span></span>
+            <span class="pts"><span class="g dim" id="s2">0</span><span class="g" id="g2">0</span><span class="p" id="pt2">0</span></span>
           </div>
         </div>
 
-        <div class="pad" style="padding-top:14px;">
-          <div class="prog"><div id="progBar"></div></div>
-          <div class="step-meta"><span class="s" id="stepName">First serve</span><span class="x" id="stepCount">Step 1</span></div>
-          <div class="path" id="pathChips"></div>
+        <div class="pad" style="padding-top:12px;">
+          <div id="liveStatus" style="margin-bottom:10px;"></div>
+          <div class="step-meta"><span class="s" id="peHead">Point 1</span></div>
+          <div class="path" id="peChips"></div>
 
-          <div id="wizard"></div>
+          <div id="entry"></div>
 
-          <div class="qadd" id="qaddBar">
-            <button class="btn btn-ghost" onclick="toggleQuick()">Quick add</button>
-            <button class="btn btn-primary" onclick="finishMatch()">Finish &amp; save</button>
+          <div class="qadd" style="margin-top:12px;">
+            <button class="btn btn-ghost" id="undoBtn" onclick="undoPoint()">↶ Undo last</button>
+            <button class="btn btn-ghost" onclick="toggleLog()">Point log (<span id="logCount">0</span>)</button>
           </div>
-          <div class="qpop" id="qpop">
-            <button class="btn btn-ghost" id="qp1" onclick="quickAdd('p1')">Alex Rivera</button>
-            <button class="btn btn-ghost" id="qp2" onclick="quickAdd('p2')">Daniel Cho</button>
-          </div>
+          <div id="logPanel" style="display:none; margin-top:10px;"></div>
+          <button class="btn btn-primary" id="finishBtn" style="margin-top:12px;" onclick="finishMatch()">Finish &amp; save</button>
           <div style="height:18px;"></div>
         </div>
       </section>
@@ -676,13 +702,15 @@ async function logout(){ try{ await Backend.signOut(); }catch(e){} currentUser=n
 
 /* ---------- match formats ---------- */
 var FORMATS=[
-  {id:'tb', label:'One tiebreak set', sub:'First to 6 games · tiebreak at 6–6', gamesToWin:6},
-  {id:'tb2', label:'Two tiebreak sets', sub:'First to win 2 tiebreak sets', gamesToWin:6},
-  {id:'bo3', label:'Best of 3 sets', sub:'Win 2 sets to take the match', gamesToWin:6},
-  {id:'short', label:'Short set', sub:'First to 4 games', gamesToWin:4},
-  {id:'pro', label:'Pro set', sub:'First to 8 games', gamesToWin:8}
+  {id:'bo3',      label:'Best of 3 tiebreak sets', sub:'First to 2 sets · 6 games, TB at 6–6', games:true},
+  {id:'bo2mtb',   label:'Best of 2 (match TB decider)', sub:'2 sets · 10-pt match TB at one set all', games:true},
+  {id:'one',      label:'One tiebreak set', sub:'Single set · 6 games, TB at 6–6', games:true},
+  {id:'superset', label:'Superset', sub:'First to 8 games · 10-pt TB at 8–8', games:true},
+  {id:'mtb',      label:'Match Tiebreaker', sub:'Whole match is one tiebreak', games:false}
 ];
 var matchFormat=FORMATS[0];
+var adScoring='ads';   // 'ads' | 'noAds'
+var mtbSub='normal';   // 'normal' (first to 7) | 'super' (first to 10)
 function renderFormats(){
   document.getElementById('fmtList').innerHTML=FORMATS.map(function(f){
     var on=f.id===matchFormat.id;
@@ -690,8 +718,21 @@ function renderFormats(){
       '<span class="tk">'+(on?'✓':'')+'</span>'+
       '<div><div class="ft">'+f.label+'</div><div class="fs">'+f.sub+'</div></div></div>';
   }).join('');
+  renderSetupExtras();
 }
 function pickFormat(id){ matchFormat=FORMATS.find(f=>f.id===id)||FORMATS[0]; renderFormats(); }
+function renderSetupExtras(){
+  var isMtb=!matchFormat.games;
+  var aw=document.getElementById('adWrap'), mw=document.getElementById('mtbWrap');
+  if(aw) aw.style.display=isMtb?'none':'block';
+  if(mw) mw.style.display=isMtb?'block':'none';
+}
+document.querySelectorAll('#adSeg button').forEach(b=>b.addEventListener('click',function(){
+  document.querySelectorAll('#adSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); adScoring=b.getAttribute('data-ad');
+}));
+document.querySelectorAll('#mtbSeg button').forEach(b=>b.addEventListener('click',function(){
+  document.querySelectorAll('#mtbSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); mtbSub=b.getAttribute('data-mtb');
+}));
 
 /* ---------- saved matches (persisted in localStorage) ---------- */
 function makeStats(o){ return {points:o.points, firstIn:o.firstIn, firstTotal:o.firstTotal, doubleFaults:o.df, serve:o.serve, fault:o.fault, rallies:o.rallies}; }
@@ -769,198 +810,268 @@ function nameUpdate(){
 document.getElementById('p1in').addEventListener('input',nameUpdate);
 document.getElementById('p2in').addEventListener('input',nameUpdate);
 
-/* ---------- match state + scoring ---------- */
-var state={p1:{pts:0,games:0},p2:{pts:0,games:0},sets:{p1:0,p2:0},server:'p1',names:{p1:'Alex Rivera',p2:'Daniel Cho'}};
-var SEQ=['0','15','30','40'];
-function ptLabel(me,you){ if(me===4) return 'Ad'; if(me===3&&you===4) return '40'; return SEQ[Math.min(me,3)]; }
-function renderBoard(){
-  document.getElementById('bn1').textContent=state.names.p1;
-  document.getElementById('bn2').textContent=state.names.p2;
-  document.getElementById('pt1').textContent=ptLabel(state.p1.pts,state.p2.pts);
-  document.getElementById('pt2').textContent=ptLabel(state.p2.pts,state.p1.pts);
-  document.getElementById('g1').textContent=state.p1.games;
-  document.getElementById('g2').textContent=state.p2.games;
-  document.getElementById('dot1').classList.toggle('on',state.server==='p1');
-  document.getElementById('dot2').classList.toggle('on',state.server==='p2');
-  document.getElementById('setLabel').textContent='Set 1 · '+state.sets.p1+'–'+state.sets.p2+' · '+matchFormat.label;
-}
-function winGame(w){
-  state[w].games++; state.p1.pts=0; state.p2.pts=0;
-  state.server = state.server==='p1'?'p2':'p1';
-  var o=w==='p1'?'p2':'p1', g=matchFormat.gamesToWin;
-  if(state[w].games>=g && state[w].games-state[o].games>=2){
-    state.sets[w]++; state.p1.games=0; state.p2.games=0;
+/* ============================================================
+   LIVE MATCH ENGINE — score is DERIVED by replaying the points
+   ============================================================ */
+var LM=null;   // live match: {p1name,p2name,format,formatLabel,tbSub,adScoring,serverFirst,points:[]}
+var PE={stage:'',draft:null,editIndex:null,pointIndex:0,server:'p1',returner:'p2'};
+var showLog=false;
+function other(p){ return p==='p1'?'p2':'p1'; }
+
+function fmtCfg(m){
+  switch(m.format){
+    case 'bo3':      return {games:true, gt:6, trig:6, setTB:7, setsToWin:2};
+    case 'bo2mtb':   return {games:true, gt:6, trig:6, setTB:7, setsToWin:2, decider:10, splitDecider:true};
+    case 'one':      return {games:true, gt:6, trig:6, setTB:7, setsToWin:1};
+    case 'superset': return {games:true, gt:8, trig:8, setTB:10, setsToWin:1};
+    case 'mtb':      return {games:false, standalone:true, target:(m.tbSub==='super'?10:7)};
+    default:         return {games:true, gt:6, trig:6, setTB:7, setsToWin:1};
   }
 }
-function awardPoint(w){
-  var o=w==='p1'?'p2':'p1', W=state[w], O=state[o];
-  if(W.pts>=3 && O.pts>=3){
-    if(W.pts===O.pts){ W.pts++; }
-    else if(O.pts>W.pts){ O.pts--; }
-    else { winGame(w); renderBoard(); return; }
-  } else if(W.pts>=3 && O.pts<3){ winGame(w); renderBoard(); return; }
-  else { W.pts++; }
-  renderBoard();
+function gameOver(a,b,ad){ if(ad==='noAds') return a>=4; return a>=4 && (a-b)>=2; }
+function tbOver(a,b,t){ return a>=t && (a-b)>=2; }
+function tbServer(first,k){ return (Math.floor((k+1)/2)%2===0)? first : other(first); }
+
+function concludeSet(S,cfg,w,tbScore){
+  S.sets[w]++;
+  S.setHistory.push({p1:S.games.p1, p2:S.games.p2, tb:tbScore});
+  if(tbScore){ S.nextServer=other(S.tbFirstServer); }   // player who didn't serve pt1 of set TB serves next set
+  S.games={p1:0,p2:0}; S.inTB=false; S.gp={p1:0,p2:0};
+  if(S.sets[w]>=cfg.setsToWin){ S.matchOver=true; S.winner=w; return; }
+  if(cfg.splitDecider && S.sets.p1===1 && S.sets.p2===1){   // 1-set-all decider
+    S.inTB=true; S.tbIsMatch=true; S.tbTarget=cfg.decider; S.tbFirstServer=S.nextServer; S.server=S.nextServer; return;
+  }
+  S.server=S.nextServer;
+}
+function computeScore(m){
+  var cfg=fmtCfg(m);
+  var S={ cfg:cfg, sets:{p1:0,p2:0}, setHistory:[], games:{p1:0,p2:0}, gp:{p1:0,p2:0},
+          inTB:false, tbTarget:0, tbIsMatch:false, tbFirstServer:null,
+          server:m.serverFirst, nextServer:m.serverFirst, matchOver:false, winner:null };
+  if(cfg.standalone){ S.inTB=true; S.tbIsMatch=true; S.tbTarget=cfg.target; S.tbFirstServer=m.serverFirst; S.server=m.serverFirst; }
+  for(var i=0;i<m.points.length && !S.matchOver;i++){
+    var w=m.points[i].pointWinner, o=other(w);
+    if(!S.inTB){
+      S.gp[w]++;
+      if(gameOver(S.gp[w],S.gp[o],m.adScoring)){
+        S.games[w]++; S.gp={p1:0,p2:0}; S.nextServer=other(S.server);
+        if(S.games[w]>=cfg.gt && (S.games[w]-S.games[o])>=2){ concludeSet(S,cfg,w,null); }
+        else if(S.games.p1===cfg.trig && S.games.p2===cfg.trig){ S.inTB=true; S.tbIsMatch=false; S.tbTarget=cfg.setTB; S.tbFirstServer=S.nextServer; S.server=S.nextServer; }
+        else { S.server=S.nextServer; }
+      }
+    } else {
+      S.gp[w]++;
+      if(tbOver(S.gp[w],S.gp[o],S.tbTarget)){
+        if(S.tbIsMatch){ S.matchOver=true; S.winner=w; }
+        else { S.games[w]++; concludeSet(S,cfg,w,{p1:S.gp.p1,p2:S.gp.p2}); }
+      } else { S.server=tbServer(S.tbFirstServer, S.gp.p1+S.gp.p2); }
+    }
+  }
+  return S;
+}
+function scoreAt(index){ return computeScore({p1name:LM.p1name,p2name:LM.p2name,format:LM.format,tbSub:LM.tbSub,adScoring:LM.adScoring,serverFirst:LM.serverFirst,points:LM.points.slice(0,index)}); }
+
+/* ---- display helpers ---- */
+function gpLabel(a,b,ad){ if(ad==='ads' && a>=3 && b>=3){ if(a===b) return '40'; return a>b?'Ad':'40'; } return ['0','15','30','40'][Math.min(a,3)]; }
+function ptDisplay(S,who){ return S.inTB? String(S.gp[who]) : gpLabel(S.gp[who], S.gp[other(who)], LM.adScoring); }
+function nameOf(p){ return p==='p1'?LM.p1name:LM.p2name; }
+function leader(S){ if(S.sets.p1!==S.sets.p2) return S.sets.p1>S.sets.p2?'p1':'p2'; if(S.games.p1!==S.games.p2) return S.games.p1>S.games.p2?'p1':'p2'; if(S.gp.p1!==S.gp.p2) return S.gp.p1>S.gp.p2?'p1':'p2'; return 'p1'; }
+function scoreString(S){
+  if(S.cfg.standalone) return S.gp.p1+'–'+S.gp.p2;
+  var parts=S.setHistory.map(function(s){ return s.p1+'–'+s.p2+(s.tb?'('+Math.min(s.tb.p1,s.tb.p2)+')':''); });
+  if(!S.matchOver && (S.games.p1||S.games.p2||S.inTB)) parts.push(S.games.p1+'–'+S.games.p2);
+  if(!parts.length) parts.push(S.games.p1+'–'+S.games.p2);
+  return parts.join('  ');
 }
 
+/* ---- start / points ---- */
 function startMatch(){
   var n=nameUpdate();
-  state={p1:{pts:0,games:0},p2:{pts:0,games:0},sets:{p1:0,p2:0},server:serveFirst,names:n};
-  session=freshSession();
-  document.getElementById('qp1').textContent=n.p1;
-  document.getElementById('qp2').textContent=n.p2;
-  renderBoard(); resetWizard(); go('live');
+  LM={ p1name:n.p1, p2name:n.p2, format:matchFormat.id, formatLabel:matchFormat.label, tbSub:mtbSub,
+       adScoring: matchFormat.games? adScoring : null, serverFirst:serveFirst, points:[] };
+  startPoint(); showLog=false; renderLive(); go('live');
+}
+function startPoint(){
+  var S=computeScore(LM);
+  PE={ stage:'s1_dir', draft:{firstServe:{}, secondServe:null, outcome:{}}, editIndex:null, pointIndex:LM.points.length, server:S.server, returner:other(S.server) };
+}
+function editPoint(i){
+  var base=scoreAt(i);
+  PE={ stage:'s1_dir', draft:{firstServe:{}, secondServe:null, outcome:{}}, editIndex:i, pointIndex:i, server:base.server, returner:other(base.server) };
+  showLog=false; renderLive(); toast('Re-enter point '+(i+1));
+}
+function undoPoint(){ if(!LM||!LM.points.length) return; LM.points.pop(); startPoint(); renderLive(); toast('Undid last point'); }
+function deletePoint(i){ LM.points.splice(i,1); startPoint(); renderLive(); toast('Point deleted'); }
+
+function commitPoint(winner){
+  var d=PE.draft, base=scoreAt(PE.pointIndex);
+  d.pointWinner=winner; d.server=PE.server; d.setNumber=base.sets.p1+base.sets.p2+1;
+  d.isTiebreak=base.inTB; d.gameNumber= base.inTB? null : (base.games.p1+base.games.p2+1);
+  if(PE.editIndex!=null){ LM.points[PE.editIndex]=d; } else { LM.points.push(d); }
+  var S=computeScore(LM);
+  if(S.matchOver){ PE.stage=''; showLog=false; renderLive(); toast('🏆 '+nameOf(S.winner)+' wins'); }
+  else { startPoint(); renderLive(); toast('✓ Point '+LM.points.length); }
+}
+
+/* ---- rendering the live screen ---- */
+function renderLive(){
+  if(!LM) return;
+  var S=computeScore(LM);
+  document.getElementById('bn1').textContent=LM.p1name;
+  document.getElementById('bn2').textContent=LM.p2name;
+  document.getElementById('s1').textContent=S.sets.p1;
+  document.getElementById('s2').textContent=S.sets.p2;
+  document.getElementById('g1').textContent=S.cfg.standalone?'–':S.games.p1;
+  document.getElementById('g2').textContent=S.cfg.standalone?'–':S.games.p2;
+  document.getElementById('pt1').textContent=ptDisplay(S,'p1');
+  document.getElementById('pt2').textContent=ptDisplay(S,'p2');
+  document.getElementById('dot1').classList.toggle('on', !S.matchOver && S.server==='p1');
+  document.getElementById('dot2').classList.toggle('on', !S.matchOver && S.server==='p2');
+  document.getElementById('setLabel').textContent=LM.formatLabel+(S.inTB?' · Tiebreak (to '+S.tbTarget+')':'');
+  var status=document.getElementById('liveStatus');
+  if(S.matchOver){
+    status.innerHTML='<div class="confirm-card"><h3>🏆 '+nameOf(S.winner)+' wins</h3><p>'+scoreString(S)+'</p></div>';
+    document.getElementById('entry').innerHTML='';
+    document.getElementById('peHead').textContent='Match complete';
+    document.getElementById('peChips').innerHTML='';
+    document.getElementById('finishBtn').textContent='Save match';
+  } else {
+    status.innerHTML='<p style="font-size:12.5px;color:var(--muted);margin:0;">Serving: <strong style="color:var(--ink)">'+nameOf(S.server)+'</strong> · '+scoreString(S)+'</p>';
+    document.getElementById('finishBtn').textContent='Finish & save';
+    renderEntry();
+  }
+  var ub=document.getElementById('undoBtn'); ub.disabled=LM.points.length===0; ub.style.opacity=LM.points.length?'1':'.5';
+  document.getElementById('logCount').textContent=LM.points.length;
+  renderLog();
+}
+
+/* ---- point-entry state machine (renders into #entry) ---- */
+var TAGS=['Slice','Drop shot','Passing shot','Lob'];
+function optBtns(opts){ return '<div class="opts">'+opts.map(function(o){ return '<button class="opt'+(o.warn?' warn':'')+(o.full?' full':'')+(o.sel?' sel':'')+'" onclick="'+o.fn+'">'+o.l+'</button>'; }).join('')+'</div>'; }
+function courtServe(){ return '<p class="court-side">'+nameOf(PE.server)+' serving</p><div class="court serve-court"><div class="zones">'+
+  '<button class="zone" onclick="peServeDir(\'Wide\')">Wide</button><button class="zone" onclick="peServeDir(\'Body\')">Body</button><button class="zone" onclick="peServeDir(\'T\')">T</button>'+
+  '</div><div class="netbar"></div><p class="net-cap">NET</p></div>'; }
+function dirBtns(){ return optBtns(['Cross-court','Down-the-line','Inside-out','Inside-in'].map(function(d){ return {l:d, fn:"peDir('"+d+"')"}; })); }
+function missBtns(fn){ return optBtns(['Long','Wide','Net'].map(function(x){ return {l:x, fn:fn+"('"+x+"')"}; })); }
+function tagBtns(){ var t=PE.draft.outcome.tags||[]; return optBtns(TAGS.map(function(x){ return {l:x, fn:"peTag('"+x+"')", sel:t.indexOf(x)>=0}; })); }
+function doneBtn(fn){ return '<button class="btn btn-primary" style="margin-top:10px;" onclick="'+fn+'">Save point</button>'; }
+function draftChips(){
+  var d=PE.draft, c=[]; if(!d) return '';
+  if(d.firstServe.direction) c.push('1st '+d.firstServe.direction+(d.firstServe.result==='fault'?' fault'+(d.firstServe.missType?' '+d.firstServe.missType:''):(d.firstServe.result==='in'?' in':'')));
+  if(d.secondServe && d.secondServe.direction) c.push('2nd '+d.secondServe.direction+(d.secondServe.result==='double'?' DF'+(d.secondServe.missType?' '+d.secondServe.missType:''):(d.secondServe.result==='in'?' in':'')));
+  var o=d.outcome||{};
+  if(o.rallyLength) c.push('rally '+o.rallyLength);
+  if(o.endPlayer && o.endedOn==='rally') c.push('by '+nameOf(o.endPlayer));
+  if(o.stroke) c.push(o.stroke);
+  if(o.direction) c.push(o.direction);
+  if(o.missType) c.push('miss '+o.missType);
+  if(o.tags&&o.tags.length) c.push(o.tags.join(', '));
+  return c.map(function(x){ return '<span class="pchip">'+x+'</span>'; }).join('');
+}
+function renderEntry(){
+  var e=document.getElementById('entry');
+  document.getElementById('peHead').textContent=(PE.editIndex!=null?'Editing point '+(PE.editIndex+1):'Point '+(LM.points.length+1));
+  document.getElementById('peChips').innerHTML=draftChips();
+  switch(PE.stage){
+    case 's1_dir': e.innerHTML='<p class="qtitle">First serve — direction</p>'+courtServe(); break;
+    case 's1_res': e.innerHTML='<p class="qtitle">First serve result</p>'+optBtns([{l:'In',fn:"peFirstRes('in')"},{l:'Fault',fn:"peFirstRes('fault')",warn:true}]); break;
+    case 's1_miss': e.innerHTML='<p class="qtitle">Where did the serve miss?</p>'+missBtns('peFirstMiss'); break;
+    case 's2_dir': e.innerHTML='<p class="qtitle">Second serve — direction</p>'+courtServe(); break;
+    case 's2_res': e.innerHTML='<p class="qtitle">Second serve result</p>'+optBtns([{l:'In',fn:"peSecondRes('in')"},{l:'Double fault',fn:"peSecondRes('double')",warn:true,full:true}]); break;
+    case 's2_miss': e.innerHTML='<p class="qtitle">Where did the 2nd serve miss?</p>'+missBtns('peSecondMiss'); break;
+    case 's3_end': e.innerHTML='<p class="qtitle">How did the point end?</p>'+optBtns([{l:'Ace / serve unreturned',fn:"peAce()",full:true},{l:'Ended on the return',fn:"peGo('s3_ret')",full:true},{l:'Rally (3+ shots)',fn:"peGo('s4_len')",full:true}]); break;
+    case 's3_ret': e.innerHTML='<p class="qtitle">Return outcome</p>'+optBtns([{l:'Return winner / forced error',fn:"peRetKind('win')",full:true},{l:'Return unforced error',fn:"peRetKind('err')",full:true,warn:true}]); break;
+    case 's3_ret_stroke': e.innerHTML='<p class="qtitle">Return stroke</p>'+optBtns([{l:'Forehand',fn:"peStroke('Forehand')"},{l:'Backhand',fn:"peStroke('Backhand')"}]); break;
+    case 's3_ret_dir': e.innerHTML='<p class="qtitle">Return direction</p>'+dirBtns(); break;
+    case 's3_ret_tags': e.innerHTML='<p class="qtitle">Tags (optional)</p>'+tagBtns()+doneBtn('peCommitReturnWin()'); break;
+    case 's3_ret_miss': e.innerHTML='<p class="qtitle">Where did the return miss?</p>'+missBtns('peReturnMiss'); break;
+    case 's4_len': e.innerHTML='<p class="qtitle">Rally length (serve=1, return=2)</p>'+optBtns([{l:'3',fn:"peLen(3)"},{l:'4',fn:"peLen(4)"},{l:'5',fn:"peLen(5)"},{l:'6',fn:"peLen(6)"},{l:'7+',fn:"peLen(7)",full:true}]); break;
+    case 's4_end': e.innerHTML='<p class="qtitle">How did the rally end?</p>'+optBtns([{l:'Winner / forced error',fn:"peRallyKind('win')",full:true},{l:'Unforced error',fn:"peRallyKind('err')",full:true,warn:true}]); break;
+    case 's4_from': e.innerHTML='<p class="qtitle">'+(PE.draft._rkind==='win'?'Who hit the winner?':'Who missed?')+'</p>'+optBtns([{l:LM.p1name,fn:"peFrom('p1')"},{l:LM.p2name,fn:"peFrom('p2')"}]); break;
+    case 's4_stroke': e.innerHTML='<p class="qtitle">Stroke</p>'+optBtns([{l:'Forehand',fn:"peStroke('Forehand')"},{l:'Backhand',fn:"peStroke('Backhand')"},{l:'FH volley',fn:"peStroke('FH volley')"},{l:'BH volley',fn:"peStroke('BH volley')"},{l:'Smash',fn:"peStroke('Smash')",full:true}]); break;
+    case 's4_dir': e.innerHTML='<p class="qtitle">Direction</p>'+dirBtns(); break;
+    case 's4_tags': e.innerHTML='<p class="qtitle">Tags (optional)</p>'+tagBtns()+doneBtn('peCommitRallyWin()'); break;
+    case 's4_miss': e.innerHTML='<p class="qtitle">Where did it miss?</p>'+missBtns('peRallyMiss'); break;
+    default: e.innerHTML='';
+  }
+}
+function peGo(st){ PE.stage=st; renderEntry(); }
+function peServeDir(dir){ if(PE.stage==='s1_dir'){ PE.draft.firstServe.direction=dir; peGo('s1_res'); } else { PE.draft.secondServe.direction=dir; peGo('s2_res'); } }
+function peFirstRes(r){ PE.draft.firstServe.result=r; if(r==='in') peGo('s3_end'); else { PE.draft.secondServe={}; peGo('s1_miss'); } }
+function peFirstMiss(m){ PE.draft.firstServe.missType=m; peGo('s2_dir'); }
+function peSecondRes(r){ PE.draft.secondServe.result=r; if(r==='in') peGo('s3_end'); else peGo('s2_miss'); }
+function peSecondMiss(m){ PE.draft.secondServe.missType=m; PE.draft.outcome={endedOn:'serve', double:true, endType:'unforced', endPlayer:PE.server}; commitPoint(PE.returner); }
+function peAce(){ PE.draft.outcome={endedOn:'serve', rallyLength:1, endType:'winner_fe', endPlayer:PE.server}; commitPoint(PE.server); }
+function peRetKind(k){ PE.draft._retKind=k; peGo('s3_ret_stroke'); }
+function peStroke(s){ PE.draft.outcome.stroke=s; if(PE.stage==='s3_ret_stroke') peGo(PE.draft._retKind==='win'?'s3_ret_dir':'s3_ret_miss'); else peGo(PE.draft._rkind==='win'?'s4_dir':'s4_miss'); }
+function peDir(dir){ PE.draft.outcome.direction=dir; peGo(PE.stage==='s3_ret_dir'?'s3_ret_tags':'s4_tags'); }
+function peTag(x){ var t=PE.draft.outcome.tags||[]; var i=t.indexOf(x); if(i>=0) t.splice(i,1); else t.push(x); PE.draft.outcome.tags=t; renderEntry(); }
+function peReturnMiss(m){ var o=PE.draft.outcome; o.endedOn='return'; o.endType='unforced'; o.endPlayer=PE.returner; o.missType=m; commitPoint(PE.server); }
+function peCommitReturnWin(){ var o=PE.draft.outcome; o.endedOn='return'; o.endType='winner_fe'; o.endPlayer=PE.returner; commitPoint(PE.returner); }
+function peLen(n){ PE.draft.outcome.rallyLength=n; peGo('s4_end'); }
+function peRallyKind(k){ PE.draft._rkind=k; peGo('s4_from'); }
+function peFrom(p){ PE.draft.outcome.endPlayer=p; peGo('s4_stroke'); }
+function peRallyMiss(m){ var o=PE.draft.outcome; o.endedOn='rally'; o.endType='unforced'; o.missType=m; commitPoint(other(o.endPlayer)); }
+function peCommitRallyWin(){ var o=PE.draft.outcome; o.endedOn='rally'; o.endType='winner_fe'; commitPoint(o.endPlayer); }
+
+/* ---- point log ---- */
+function toggleLog(){ showLog=!showLog; renderLog(); }
+function pointDesc(pt){
+  var o=pt.outcome||{}, ss=pt.secondServe;
+  if(ss && ss.result==='double') return 'Double fault';
+  if(o.endedOn==='serve' && o.rallyLength===1) return 'Ace / unreturned';
+  if(o.endedOn==='return') return 'Return '+(o.endType==='unforced'?'error':'winner')+(o.stroke?' · '+o.stroke:'');
+  if(o.endedOn==='rally') return 'Rally '+o.rallyLength+' · '+(o.endType==='unforced'?'UE':'winner')+(o.stroke?' '+o.stroke:'');
+  return 'Point';
+}
+function renderLog(){
+  var p=document.getElementById('logPanel'); if(!p) return;
+  if(!showLog){ p.style.display='none'; return; }
+  p.style.display='block';
+  if(!LM.points.length){ p.innerHTML='<p style="font-size:13px;color:var(--muted);text-align:center;padding:10px;">No points yet.</p>'; return; }
+  p.innerHTML=LM.points.map(function(pt,i){
+    return '<div class="prow"><span class="pn2">#'+(i+1)+'</span><span>'+pointDesc(pt)+'</span>'+
+      '<span class="pw">'+nameOf(pt.pointWinner)+'</span>'+
+      '<button class="mini" onclick="editPoint('+i+')">Edit</button>'+
+      '<button class="mini warn" onclick="deletePoint('+i+')">Del</button></div>';
+  }).join('');
+}
+
+/* ---- aggregate stats from the point list (feeds analytics + match cards) ---- */
+function aggregateFromPoints(m){
+  var a={points:0, firstIn:0, firstTotal:0, doubleFaults:0, serve:{Wide:0,Body:0,T:0}, fault:{Net:0,Wide:0,Long:0}, rallies:[]};
+  m.points.forEach(function(pt){
+    a.points++; a.firstTotal++;
+    if(pt.firstServe.result==='in') a.firstIn++;
+    var inServe = pt.firstServe.result==='in'? pt.firstServe : (pt.secondServe && pt.secondServe.result==='in'? pt.secondServe : null);
+    if(inServe && a.serve[inServe.direction]!=null) a.serve[inServe.direction]++;
+    if(pt.firstServe.result==='fault' && pt.firstServe.missType && a.fault[pt.firstServe.missType]!=null) a.fault[pt.firstServe.missType]++;
+    if(pt.secondServe && pt.secondServe.result==='double'){ a.doubleFaults++; if(pt.secondServe.missType && a.fault[pt.secondServe.missType]!=null) a.fault[pt.secondServe.missType]++; }
+    var rl=pt.outcome && pt.outcome.rallyLength;
+    if(rl && rl>=3) a.rallies.push(rl);
+  });
+  return a;
 }
 
 async function finishMatch(){
   if(!currentUser){ toast('Please sign in first'); return; }
-  var won = state.sets.p1>state.sets.p2 || (state.sets.p1===state.sets.p2 && state.p1.games>=state.p2.games);
-  var score = (state.sets.p1+state.sets.p2>0) ? (state.sets.p1+'–'+state.sets.p2+' sets') : (state.p1.games+'–'+state.p2.games);
-  var m={ id:nextId(), p1:state.names.p1, p2:state.names.p2, score:score,
-          winner: won?'p1':'p2', date:'Just now', fmt:matchFormat.label,
-          acc:ACC_CYCLE[matches.length%ACC_CYCLE.length], stats:session };
+  if(!LM || !LM.points.length){ toast('Log at least one point first'); return; }
+  var S=computeScore(LM);
+  var winner = S.matchOver? S.winner : leader(S);
+  var score = scoreString(S);
+  var stats = Object.assign({}, aggregateFromPoints(LM), {
+    config:{format:LM.format, formatLabel:LM.formatLabel, adScoring:LM.adScoring, tbSub:LM.tbSub, serverFirst:LM.serverFirst},
+    pts:LM.points, finalScore:score, matchWinner:winner, completed:S.matchOver
+  });
+  var m={ id:nextId(), p1:LM.p1name, p2:LM.p2name, score:score, winner:winner, date:'Just now',
+          fmt:LM.formatLabel, acc:ACC_CYCLE[matches.length%ACC_CYCLE.length], stats:stats };
   try{ var saved=await Backend.addMatch(m); matches.unshift(saved||m); }
   catch(e){ toast('Could not save: '+(e.message||'error')); return; }
-  session=freshSession();
+  LM=null;
   renderMatches();
   toast('✓ Match saved');
   go('matches');
 }
-
-/* ---------- live session tallies ---------- */
-function freshSession(){
-  return { points:0, firstIn:0, firstTotal:0, doubleFaults:0,
-           serve:{Wide:0,Body:0,T:0}, fault:{Net:0,Wide:0,Long:0}, rallies:[] };
-}
-var session=freshSession();
-function freshPoint(){ return {firstServe:null, serveLoc:null, faultLocs:[], rally:null, isDouble:false}; }
-var curPoint=freshPoint();
-function commitPoint(){
-  session.points++;
-  if(curPoint.firstServe){ session.firstTotal++; if(curPoint.firstServe==='In') session.firstIn++; }
-  if(curPoint.serveLoc) session.serve[curPoint.serveLoc]++;
-  curPoint.faultLocs.forEach(function(z){ if(session.fault[z]!=null) session.fault[z]++; });
-  if(curPoint.isDouble) session.doubleFaults++;
-  if(curPoint.rally!=null) session.rallies.push(curPoint.rally);
-}
-
-/* ---------- point-entry wizard ---------- */
-var flow={
-  firstServe:{name:'First serve', q:'First serve', opts:[
-    {l:'In', next:'serveLoc'},{l:'Fault', next:'faultLoc1', tone:'warn'}]},
-  serveLoc:{name:'Serve location', q:'Where did the serve land?', court:'serve', next:'returnResult'},
-  faultLoc1:{name:'Fault location', q:'Where did the serve miss?', court:'fault', next:'secondServe'},
-  secondServe:{name:'Second serve', q:'Second serve', opts:[
-    {l:'In', next:'serveLoc2'},{l:'Fault', next:'faultLoc2', tone:'warn'}]},
-  serveLoc2:{name:'Serve location', q:'Where did the 2nd serve land?', court:'serve', next:'returnResult'},
-  faultLoc2:{name:'Fault location', q:'Where did the 2nd serve miss?', court:'fault', next:'__df'},
-  returnResult:{name:'Return result', q:'Return result', opts:[
-    {l:'In play', next:'rallyLength'},{l:'Winner', next:'winner'},
-    {l:'Forced error', next:'errType'},{l:'Unforced error', next:'errType'}]},
-  rallyLength:{name:'Rally length', q:'Rally length', opts:[
-    {l:'3', next:'pointEnding'},{l:'4', next:'pointEnding'},{l:'5', next:'pointEnding'},
-    {l:'6', next:'pointEnding'},{l:'7+', next:'pointEnding', full:true}]},
-  pointEnding:{name:'Point ending', q:'How did the point end?', opts:[
-    {l:'Winner', next:'winner'},{l:'Forced error', next:'errType'},{l:'Unforced error', next:'errType'}]},
-  winner:{name:'Winner', q:'Who hit the winner?', dyn:'players', next:'shotType'},
-  shotType:{name:'Shot type', q:'Shot type', opts:[
-    {l:'Forehand', next:'direction'},{l:'Backhand', next:'direction'},
-    {l:'Forehand volley', next:'direction'},{l:'Backhand volley', next:'direction'},
-    {l:'Smash', next:'direction', full:true}]},
-  direction:{name:'Direction', q:'Direction', opts:[
-    {l:'Crosscourt', next:'__ok'},{l:'Down the line', next:'__ok'},
-    {l:'Inside out', next:'__ok'},{l:'Inside in', next:'__ok'},
-    {l:'Slice', next:'__ok'},{l:'Drop shot', next:'__ok'},
-    {l:'Passing shot', next:'__ok', full:true}]},
-  errType:{name:'Error type', q:'Where did it miss?', opts:[
-    {l:'Net', next:'__ok'},{l:'Wide', next:'__ok'},{l:'Long', next:'__ok'}]}
-};
-var cur='firstServe', path=[], pendingWinner=null, stepNo=1;
-function resetWizard(){ cur='firstServe'; path=[]; pendingWinner=null; stepNo=1; curPoint=freshPoint(); document.getElementById('qpop').classList.remove('show'); renderWizard(); }
-function renderPath(){ document.getElementById('pathChips').innerHTML=path.map(p=>'<span class="pchip">'+p+'</span>').join(''); }
-function renderWizard(){
-  var node=flow[cur];
-  document.getElementById('stepName').textContent=node.name;
-  document.getElementById('stepCount').textContent='Step '+stepNo;
-  document.getElementById('progBar').style.width=Math.min(14+(stepNo-1)*16,100)+'%';
-  renderPath();
-  if(node.court){
-    document.getElementById('wizard').innerHTML=courtMarkup(node.court, node.q);
-    document.getElementById('qaddBar').style.display='flex';
-    return;
-  }
-  var opts=node.opts;
-  if(node.dyn==='players'){ opts=[{l:state.names.p1, val:'p1', next:node.next},{l:state.names.p2, val:'p2', next:node.next, full:true}]; }
-  var html='<p class="qtitle">'+node.q+'</p><div class="opts">';
-  opts.forEach((o,i)=>{ html+='<button class="opt'+(o.tone==='warn'?' warn':'')+(o.full?' full':'')+'" onclick="pick(\''+cur+'\','+i+')">'+o.l+'</button>'; });
-  html+='</div>';
-  document.getElementById('wizard').innerHTML=html;
-  document.getElementById('qaddBar').style.display='flex';
-}
-function pick(stepKey, i){
-  var node=flow[stepKey];
-  var opts=node.opts;
-  if(node.dyn==='players'){ opts=[{l:state.names.p1, val:'p1', next:node.next},{l:state.names.p2, val:'p2', next:node.next}]; }
-  var o=opts[i];
-  path.push(node.name+': '+o.l);
-  if(stepKey==='firstServe'){ curPoint.firstServe=o.l; }
-  if(stepKey==='rallyLength'){ curPoint.rally=(o.l==='7+'?7:parseInt(o.l,10)); }
-  if(node.dyn==='players'){ pendingWinner=o.val; }
-  if(stepKey==='errType' && pendingWinner===null){ pendingWinner=state.server; }
-  if(o.next==='__ok'){ showConfirm('Point recorded', summaryLine()); return; }
-  cur=o.next; stepNo++; renderWizard();
-}
-
-/* ---------- court picker ---------- */
-function serveSide(){ return ((state.p1.pts+state.p2.pts)%2===0)?'Deuce':'Ad'; }
-function courtMarkup(kind, q){
-  if(kind==='serve'){
-    return '<p class="qtitle">'+q+'</p>'+
-      '<p class="court-side">'+serveSide()+' service box</p>'+
-      '<div class="court serve-court">'+
-        '<div class="zones">'+
-          '<button class="zone" onclick="pickCourt(\'Wide\')">Wide</button>'+
-          '<button class="zone" onclick="pickCourt(\'Body\')">Body</button>'+
-          '<button class="zone" onclick="pickCourt(\'T\')">T</button>'+
-        '</div>'+
-        '<div class="netbar"></div><p class="net-cap">NET</p>'+
-      '</div>';
-  }
-  return '<p class="qtitle">'+q+'</p>'+
-    '<p class="court-side">'+serveSide()+' service box · where did it miss?</p>'+
-    '<div class="court fault-court">'+
-      '<div class="frow"><button class="zone long" onclick="pickCourt(\'Long\')">Long · past service line</button></div>'+
-      '<div class="frow midrow">'+
-        '<button class="zone inbox" disabled>service box (in)</button>'+
-        '<button class="zone wide" onclick="pickCourt(\'Wide\')">Wide</button>'+
-      '</div>'+
-      '<div class="netbar"></div>'+
-      '<div class="frow"><button class="zone net2" onclick="pickCourt(\'Net\')">Net</button></div>'+
-    '</div>';
-}
-function pickCourt(zone){
-  var node=flow[cur];
-  path.push(node.name+': '+zone);
-  if(cur==='serveLoc'||cur==='serveLoc2'){ curPoint.serveLoc=zone; }
-  if(cur==='faultLoc1'){ curPoint.faultLocs.push(zone); }
-  if(cur==='faultLoc2'){ curPoint.faultLocs.push(zone); curPoint.isDouble=true; }
-  var nxt=node.next;
-  if(nxt==='__df'){ pendingWinner=(state.server==='p1'?'p2':'p1'); showConfirm('Double fault', state.names[pendingWinner]+' wins the point'); return; }
-  if(nxt==='__ok'){ showConfirm('Point recorded', summaryLine()); return; }
-  cur=nxt; stepNo++; renderWizard();
-}
-function summaryLine(){ if(pendingWinner) return state.names[pendingWinner]+' wins the point'; return 'Point captured'; }
-function showConfirm(title, sub){
-  document.getElementById('progBar').style.width='100%';
-  document.getElementById('stepName').textContent='Confirm';
-  document.getElementById('stepCount').textContent='Final';
-  renderPath();
-  document.getElementById('wizard').innerHTML='<div class="confirm-card"><h3>'+title+'</h3><p>'+sub+'</p><button class="btn btn-primary" onclick="confirmPoint()">Confirm point</button></div>';
-  document.getElementById('qaddBar').style.display='none';
-}
-function confirmPoint(){ commitPoint(); if(pendingWinner) awardPoint(pendingWinner); resetWizard(); toast('✓ Point recorded'); }
-function toggleQuick(){ document.getElementById('qpop').classList.toggle('show'); }
-function quickAdd(w){ awardPoint(w); document.getElementById('qpop').classList.remove('show'); toast('✓ Point to '+state.names[w]); }
 
 var toastT;
 function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1700); }
@@ -994,14 +1105,14 @@ function openMatch(id){
 }
 
 /* ---------- analytics ---------- */
-function allStats(){ return matches.concat(session.points?[{stats:session}]:[]); }
+function allStats(){ return (LM && LM.points.length)? matches.concat([{stats:aggregateFromPoints(LM)}]) : matches; }
 function aggregateStats(list){
-  var a=freshSession();
+  var a={points:0, firstIn:0, firstTotal:0, doubleFaults:0, serve:{Wide:0,Body:0,T:0}, fault:{Net:0,Wide:0,Long:0}, rallies:[]};
   list.forEach(function(m){
     var s=m.stats; if(!s) return;
-    a.points+=s.points; a.firstIn+=s.firstIn; a.firstTotal+=s.firstTotal; a.doubleFaults+=s.doubleFaults;
-    ['Wide','Body','T'].forEach(k=>a.serve[k]+=s.serve[k]||0);
-    ['Net','Wide','Long'].forEach(k=>a.fault[k]+=s.fault[k]||0);
+    a.points+=(s.points||0); a.firstIn+=(s.firstIn||0); a.firstTotal+=(s.firstTotal||0); a.doubleFaults+=(s.doubleFaults||0);
+    ['Wide','Body','T'].forEach(k=>a.serve[k]+=(s.serve&&s.serve[k])||0);
+    ['Net','Wide','Long'].forEach(k=>a.fault[k]+=(s.fault&&s.fault[k])||0);
     a.rallies=a.rallies.concat(s.rallies||[]);
   });
   return a;
@@ -1050,7 +1161,7 @@ function exportAnalytics(){
 
 /* ---------- init ---------- */
 (async function init(){
-  renderFormats(); renderBoard(); resetWizard();
+  renderFormats();
   seedAccounts();
   var sess=null; try{ sess=await Backend.getSession(); }catch(e){}
   if(sess){ await setCurrentUser(sess); go('matches'); }
